@@ -39,18 +39,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 /* ---------- 消息处理 ---------- */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // 打开聊天窗口（双窗口分工：列表窗点沟通，聊天窗发消息）
-  if (request.type === "open_chat_window") {
-    chrome.windows
-      .create({
-        url: "https://www.zhipin.com/web/geek/chat",
-        type: "normal",
-        focused: true,
-      })
-      .catch((err) => console.log("[BOSS海投] 打开窗口失败:", err.message));
-    return false;
-  }
-
   // 代理 fetch（绕开页面 CSP / 跨域）
   if (request.type === "apiRequest") {
     const options = request.options;

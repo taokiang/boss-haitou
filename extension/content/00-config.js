@@ -223,7 +223,7 @@
     isRunning: false,
 
     includeKeywords: [],
-    excludeKeywords: [],
+    cityKeywords: [],
     communicationIncludeKeywords: [],
 
     ui: {

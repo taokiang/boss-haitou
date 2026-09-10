@@ -58,10 +58,16 @@
       case "chat":
         if (!chatAutoStarted) {
           chatAutoStarted = true;
-          BH.log("聊天页已就绪，即将自动开始…");
-          setTimeout(() => {
-            if (!state.isRunning) BH.core.toggleChatProcess();
-          }, 2500);
+          // 仅当列表页正在海投（心跳 15s 内）才自动开聊，避免手动浏览消息时误触发
+          const runningTs = parseInt(localStorage.getItem("bh_haitou_running") || "0", 10);
+          if (Date.now() - runningTs < 15000) {
+            BH.log("检测到海投运行中，即将自动开聊…");
+            setTimeout(() => {
+              if (!state.isRunning) BH.core.toggleChatProcess();
+            }, 2500);
+          } else {
+            BH.log("未检测到海投运行，消息页待机（不自动开聊）");
+          }
         }
         break;
       case "notify-set":
@@ -74,13 +80,15 @@
 
   function rebuildPanelIfNeeded(pageType) {
     const panel = document.getElementById("bh-panel");
-    if (!panel) return;
-    const isChatPanel = !!document.getElementById("bh-communication-include");
-    const needChat = pageType === "chat";
-    if (isChatPanel !== needChat) {
-      panel.remove();
+    if (pageType === "chat") {
+      // 聊天页不展示面板
+      panel?.remove();
       document.getElementById("bh-mini")?.remove();
       BH.elements.panel = null;
+      return;
+    }
+    // 其他页面：确保列表页面板存在
+    if (!panel) {
       BH.ui.init();
     }
   }

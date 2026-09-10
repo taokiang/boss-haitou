@@ -38,7 +38,7 @@
         flex: 1; padding: 10px; text-align: center; font-size: 13px; color: #64748b;
         cursor: pointer; border-bottom: 2px solid transparent;
       }
-      .bh-tab.bh-active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+      .bh-tab.bh-active { color: #07c160; border-bottom-color: #07c160; font-weight: 600; }
       .bh-dialog-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
       .bh-dialog-footer {
         display: flex; justify-content: flex-end; gap: 10px;
@@ -48,7 +48,7 @@
         padding: 8px 18px; border-radius: 8px; font-size: 13px; cursor: pointer; border: none;
       }
       .bh-btn-plain { background: #f1f5f9; color: #334155; }
-      .bh-btn-primary { background: #2563eb; color: #fff; }
+      .bh-btn-primary { background: #07c160; color: #fff; }
       .bh-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
       .bh-setting-item {
@@ -66,7 +66,7 @@
         content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%;
         left: 3px; top: 3px; background: #fff; transition: .2s;
       }
-      .bh-switch input:checked + .bh-slider { background: #2563eb; }
+      .bh-switch input:checked + .bh-slider { background: #07c160; }
       .bh-switch input:checked + .bh-slider::before { transform: translateX(18px); }
       .bh-switch.bh-locked .bh-slider { opacity: .5; cursor: not-allowed; }
 
@@ -75,7 +75,7 @@
         flex: 1; min-height: 56px; padding: 8px 10px; border: 1px solid #e2e8f0;
         border-radius: 8px; font-size: 12px; resize: vertical; outline: none;
       }
-      .bh-greeting-item textarea:focus { border-color: #2563eb; }
+      .bh-greeting-item textarea:focus { border-color: #07c160; }
       .bh-greeting-del {
         border: none; background: #fee2e2; color: #ef4444; border-radius: 6px;
         width: 26px; height: 26px; cursor: pointer; flex-shrink: 0;
@@ -84,7 +84,7 @@
         width: 100%; padding: 9px; border: 1px dashed #cbd5e1; border-radius: 8px;
         background: #f8fafc; color: #64748b; font-size: 12px; cursor: pointer;
       }
-      .bh-add-btn:hover { border-color: #2563eb; color: #2563eb; }
+      .bh-add-btn:hover { border-color: #07c160; color: #07c160; }
 
       .bh-img-item {
         display: flex; align-items: center; justify-content: space-between;
@@ -116,7 +116,7 @@
         width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px;
         font-size: 13px; letter-spacing: 1px; outline: none; margin: 12px 0 8px;
       }
-      .bh-activate-input:focus { border-color: #2563eb; }
+      .bh-activate-input:focus { border-color: #07c160; }
       .bh-activate-error { color: #ef4444; font-size: 12px; min-height: 16px; }
       .bh-activate-ok {
         text-align: center; color: #16a34a; font-size: 14px; padding: 20px 0 10px;
@@ -521,14 +521,17 @@
       ok.innerHTML = `✓ 插件已激活<br><small style="color:#94a3b8">卡密：${masked}</small>`;
       body.appendChild(ok);
     } else {
+      // 未激活：弹窗的同时打开购卡链接
+      window.open("https://68n.cn/qDQRi", "_blank");
+
       const tip = document.createElement("p");
-      tip.style.cssText = "font-size:13px;color:#475569;";
-      tip.textContent = "请输入 32 位激活卡密：";
+      tip.style.cssText = "font-size:13px;color:#ef4444;font-weight:600;";
+      tip.textContent = "激活开通高级设置功能";
       body.appendChild(tip);
 
       const input = document.createElement("input");
       input.className = "bh-activate-input";
-      input.placeholder = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+      input.placeholder = "请输入 32 位激活卡密";
       input.maxLength = 32;
       body.appendChild(input);
 
@@ -561,6 +564,11 @@
         });
       });
       body.appendChild(activateBtn);
+
+      const buyTip = document.createElement("p");
+      buyTip.style.cssText = "font-size:11px;color:#94a3b8;text-align:center;margin-top:10px;";
+      buyTip.textContent = "购卡地址已在新标签页打开";
+      body.appendChild(buyTip);
     }
 
     dialog.append(header, body);

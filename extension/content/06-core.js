@@ -18,6 +18,12 @@
   let messageObserver = null;
   let processingMessage = false;
   let lastProcessedMessage = "";
+  // 正在交互中的 HR（防主循环 1s 节拍在交互完成前重入，导致重复发送）
+  let interactingHRKey = null;
+  // 聊天页就绪心跳时间戳（跨标签页通知列表页关闭引导）
+  let lastReadyBeat = 0;
+  // 列表页"海投运行中"心跳时间戳（聊天页据此判断是否允许自动开聊）
+  let lastRunBeat = 0;
 
   /* ================= 主循环 ================= */
 
@@ -26,8 +32,25 @@
       try {
         const pathname = location.pathname;
         if (pathname.includes("/jobs")) {
+          // 心跳：告知聊天页"海投运行中"
+          if (Date.now() - lastRunBeat > 5000) {
+            lastRunBeat = Date.now();
+            localStorage.setItem("bh_haitou_running", String(lastRunBeat));
+          }
           await processJobList();
         } else if (pathname.includes("/chat")) {
+          // 列表页已停止海投（心跳过期）→ 聊天页自动停止
+          const runningTs = parseInt(localStorage.getItem("bh_haitou_running") || "0", 10);
+          if (Date.now() - runningTs > 20000) {
+            state.isRunning = false;
+            BH.log("未检测到海投运行，已自动停止聊天处理");
+            break;
+          }
+          // 心跳：告知列表页"消息页已就绪"，自动关闭红色引导提示
+          if (Date.now() - lastReadyBeat > 5000) {
+            lastReadyBeat = Date.now();
+            localStorage.setItem("bh_chat_ready", String(lastReadyBeat));
+          }
           await handleChatPage();
         }
       } catch (e) {
@@ -63,11 +86,13 @@
       ) {
         return false;
       }
-      if (
-        state.excludeKeywords.length &&
-        state.excludeKeywords.some((kw) => jobName.includes(kw))
-      ) {
-        return false;
+      // 城市包含：匹配卡片上的工作地区（.job-area，如"上海·青浦区·徐泾"），兜底卡片全文
+      if (state.cityKeywords.length) {
+        const areaEl = card.querySelector(".job-area");
+        const cityText = (areaEl && areaEl.textContent.trim()) || card.textContent || "";
+        if (!state.cityKeywords.some((kw) => cityText.includes(kw))) {
+          return false;
+        }
       }
       if (state.settings.excludeHeadhunters) {
         const tagIcon = card.querySelector(".job-tag-icon");
@@ -130,6 +155,8 @@
   function resetCycle(reason) {
     state.isRunning = false;
     BH.ui.setRunning(false, "停止海投", "启动海投");
+    BH.ui.hideChatGuide();
+    localStorage.removeItem("bh_haitou_running");
     BH.log(reason || "所有岗位沟通完成，已自动停止");
   }
 
@@ -251,6 +278,7 @@
       lastProcessedMessage = currentText;
 
       if (/简历/.test(currentText)) {
+        BH.chat.syncDedupSets();
         if (
           state.settings.useAutoSendImageResume &&
           !state.hrInteractions.sentImageResumeHRs.has(hrKey)
@@ -309,7 +337,8 @@
     if (!name) return;
     const hrKey = `${name}-${company}`.toLowerCase();
 
-    // 同一人且监听已在跑 → 跳过
+    // 正在交互中 / 同一人且监听已在跑 → 跳过
+    if (interactingHRKey === hrKey) return;
     if (hrKey === currentMonitoredHR && messageObserver) return;
     currentMonitoredHR = hrKey;
 
@@ -340,8 +369,14 @@
       await util.delay(CONFIG.OPERATION_INTERVAL);
     }
 
-    await BH.chat.handleHRInteraction(hrKey);
+    // 先挂消息监听，再交互（交互期间即可响应 HR 消息，且下一节拍守卫生效）
     setupMessageObserver(hrKey);
+    interactingHRKey = hrKey;
+    try {
+      await BH.chat.handleHRInteraction(hrKey);
+    } finally {
+      interactingHRKey = null;
+    }
   }
 
   /* ================= 启动 / 停止入口 ================= */
@@ -361,16 +396,16 @@
 
     state.isRunning = true;
     state.includeKeywords = parseKeywords(elements.includeInput?.value || "");
-    state.excludeKeywords = parseKeywords(elements.excludeInput?.value || "");
+    state.cityKeywords = parseKeywords(elements.cityInput?.value || "");
     processedCards.clear();
     if (elements.log) elements.log.innerHTML = "";
 
     BH.ui.setRunning(true, "停止海投", "启动海投");
     BH.log("开始海投…");
 
-    // 打开聊天窗口：列表窗点沟通，聊天窗发消息
-    chrome.runtime.sendMessage({ type: "open_chat_window" });
-    BH.log("已请求打开聊天窗口，请保持两个窗口运行");
+    // 不自动跳转：红色小手指引用户手动打开消息页（消息页会自动开聊）
+    BH.ui.showChatGuide();
+    BH.log("请右键顶部「消息」-> 在新标签页打开链接，即可自动开聊");
 
     await startProcessing();
   }

@@ -13,6 +13,38 @@
     return document.querySelector(".chat-message .im-list");
   }
 
+  /**
+   * 从 localStorage 重同步去重集合（防多标签页内存不同步导致重复发送）
+   */
+  function syncDedupSets() {
+    state.hrInteractions.sentGreetingsHRs = new Set(
+      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS, [])
+    );
+    state.hrInteractions.sentResumeHRs = new Set(
+      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_RESUME_HRS, [])
+    );
+    state.hrInteractions.sentImageResumeHRs = new Set(
+      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_IMAGE_RESUME_HRS, [])
+    );
+  }
+
+  function markGreetingsSent(hrKey) {
+    BH.storage.addRecordWithLimit(
+      state.hrInteractions.sentGreetingsHRs,
+      CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS,
+      CONFIG.STORAGE_LIMITS.SENT_GREETINGS_HRS,
+      hrKey
+    );
+  }
+
+  /**
+   * 当前会话消息区的全文（用于校验打招呼语是否已发过）
+   */
+  function getConversationText() {
+    const list = getMessageList();
+    return list ? (list.textContent || "").replace(/\s+/g, "") : "";
+  }
+
   function getFriendMessages() {
     const list = getMessageList();
     return list ? list.querySelectorAll("li.message-item.item-friend") : [];
@@ -88,12 +120,7 @@
       await sendCustomReply(greeting.trim());
       await util.smartDelay(state.settings.clickDelay, "click");
     }
-    BH.storage.addRecordWithLimit(
-      state.hrInteractions.sentGreetingsHRs,
-      CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS,
-      CONFIG.STORAGE_LIMITS.SENT_GREETINGS_HRS,
-      hrKey
-    );
+    markGreetingsSent(hrKey);
     BH.log("打招呼语已发送");
     return true;
   }
@@ -337,8 +364,25 @@
 
   async function handleHRInteraction(hrKey) {
     try {
+      // 每次处理前重同步去重集合（跨标签页安全）
+      syncDedupSets();
+
       const responded = hasHRResponded();
-      const greeted = state.hrInteractions.sentGreetingsHRs.has(hrKey);
+      let greeted = state.hrInteractions.sentGreetingsHRs.has(hrKey);
+
+      // DOM 真相校验：会话里已存在我们的打招呼语 → 视为已发过，不再重发
+      if (!greeted && !responded) {
+        const convoText = getConversationText();
+        const alreadyInDom = state.settings.greetingsList.some((g) => {
+          const probe = (g || "").trim().replace(/\s+/g, "").slice(0, 12);
+          return probe && convoText.includes(probe);
+        });
+        if (alreadyInDom) {
+          markGreetingsSent(hrKey);
+          greeted = true;
+          BH.log("检测到已发送过打招呼语，跳过");
+        }
+      }
 
       if (!greeted && !responded) {
         // 首次沟通：打招呼 → 发简历
@@ -374,5 +418,6 @@
     hasHRResponded,
     handleCardMessage,
     getLastFriendMessageText,
+    syncDedupSets,
   };
 })();
