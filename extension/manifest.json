@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "1.0.0",
+  "default_locale": "zh_CN",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.zhipin.com/*",
+    "https://zhipin.com/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "content/00-config.js",
+        "content/01-storage.js",
+        "content/02-image-store.js",
+        "content/03-ui.js",
+        "content/04-dialogs.js",
+        "content/05-chat.js",
+        "content/06-core.js",
+        "content/07-main.js"
+      ],
+      "matches": ["https://www.zhipin.com/web/*"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "assets/icon.png",
+    "48": "assets/icon.png",
+    "128": "assets/icon.png"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": ["https://www.zhipin.com/*"],
+      "resources": ["assets/*"]
+    }
+  ]
+}

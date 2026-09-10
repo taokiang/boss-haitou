@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "description": "Extension name",
+    "message": "BOSS Haitou"
+  },
+  "extensionDescription": {
+    "description": "Extension description",
+    "message": "One-click batch job application for zhipin.com, boost your job hunting efficiency"
+  }
+}

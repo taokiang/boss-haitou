@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "description": "扩展名称",
+    "message": "BOSS海投"
+  },
+  "extensionDescription": {
+    "description": "扩展描述",
+    "message": "一键批量投递，简历秒回复！让你的BOSS直聘求职效率提升10倍"
+  }
+}
