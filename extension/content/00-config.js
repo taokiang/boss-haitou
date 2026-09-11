@@ -39,6 +39,8 @@
       ANIMATION_DURATION: 300,
       DEBOUNCE_DELAY: 300,
     },
+
+    DEFAULT_GREETING: "你好，我对这个职位很有兴趣，如方便能否聊聊？",
   };
 
   /* ---------------- 工具函数 ---------------- */
@@ -247,7 +249,7 @@
       recruiterActivityStatus: util.getStoredJSON("bh_recruiterActivityStatus", ["不限"]),
       clickDelay: parseInt(localStorage.getItem("bh_clickDelay") || "130", 10) || 130,
       greetingsList: util.getStoredJSON("bh_greetingsList", [
-        "您好，我对这个岗位很感兴趣，希望能够进一步沟通。",
+        BH.CONFIG.DEFAULT_GREETING,
       ]),
       imageResumes: util.getStoredJSON("bh_imageResumes", []), // [{id, path}]
     },

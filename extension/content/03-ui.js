@@ -30,6 +30,12 @@
       <circle cx="7.5" cy="15.5" r="4.5"/><path d="M11 12l9-9"/><path d="M16 4l3 3"/><path d="M13 7l3 3"/>
     </svg>`;
 
+  const CHECK_SVG = `
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+      <path d="m5 12.5 4.2 4.2L19 7"/>
+    </svg>`;
+
   function injectScrollbarStyles() {
     if (document.getElementById("bh-scrollbar-styles")) return;
     const style = document.createElement("style");
@@ -50,6 +56,26 @@
       @keyframes bh-guide-bounce {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-6px); }
+      }
+      @keyframes bh-activate-shine {
+        0% { transform: translateX(-150%) skewX(-20deg); }
+        100% { transform: translateX(420%) skewX(-20deg); }
+      }
+      #bh-activate-cta {
+        position: relative !important; overflow: hidden !important;
+      }
+      #bh-activate-cta::after {
+        content: ""; position: absolute; top: -40%; left: 0; width: 24%; height: 180%;
+        pointer-events: none; background: linear-gradient(90deg, transparent, rgba(255,255,255,.34), transparent);
+        transform: translateX(-150%) skewX(-20deg); animation: bh-activate-shine .9s .65s ease-out 1 both;
+      }
+      #bh-activate-cta[data-activated="true"]::after { display: none; }
+      @media (max-width: 420px) {
+        #bh-activate-cta { width: 36px !important; padding: 0 !important; border-radius: 50% !important; }
+        #bh-activate-cta .bh-activate-label, #bh-activate-cta .bh-pro-badge { display: none !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #bh-activate-cta::after { animation: none; display: none; }
       }
     `;
     document.head.appendChild(style);
@@ -196,6 +222,63 @@
     return btn;
   }
 
+  function renderActivationButton(btn) {
+    const activated = state.activation.isActivated;
+    btn.dataset.activated = String(activated);
+    btn.disabled = activated;
+    btn.title = activated ? "高级功能已激活" : "激活高级版，解锁自动简历与精准筛选";
+    btn.setAttribute("aria-label", btn.title);
+    btn.innerHTML = activated
+      ? `${CHECK_SVG}<span class="bh-activate-label">已激活</span>`
+      : `${KEY_SVG}<span class="bh-activate-label">激活</span><span class="bh-pro-badge">PRO</span>`;
+    btn.style.cssText = `
+      height:34px;min-width:${activated ? "78px" : "91px"};padding:0 10px;border:1px solid ${activated ? "#cdeedc" : "#173042"};
+      border-radius:10px;background:${activated ? "#eef9f3" : "#173042"};color:${activated ? COLORS.primary : "#fff"};
+      display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;
+      cursor:${activated ? "default" : "pointer"};font-size:12px;font-weight:650;line-height:1;
+      box-shadow:${activated ? "none" : "0 5px 13px rgba(23,48,66,.2)"};
+      transition:transform .18s ease,box-shadow .18s ease,background .18s ease;
+    `;
+    const badge = btn.querySelector(".bh-pro-badge");
+    if (badge) {
+      badge.style.cssText = `
+        position:relative;z-index:1;padding:3px 4px;border-radius:5px;background:#f5bd4f;color:#553a08;
+        font:800 9px/1 'SFMono-Regular',Consolas,monospace;letter-spacing:.04em;
+      `;
+    }
+    btn.querySelectorAll("svg,.bh-activate-label").forEach((el) => {
+      el.style.position = "relative";
+      el.style.zIndex = "1";
+    });
+  }
+
+  function createActivationButton(onClick) {
+    const btn = document.createElement("button");
+    btn.id = "bh-activate-cta";
+    btn.type = "button";
+    renderActivationButton(btn);
+    btn.addEventListener("mouseenter", () => {
+      if (btn.disabled) return;
+      btn.style.background = "#20445c";
+      btn.style.transform = "translateY(-1px)";
+      btn.style.boxShadow = "0 7px 17px rgba(23,48,66,.25)";
+    });
+    btn.addEventListener("mouseleave", () => {
+      if (btn.disabled) return;
+      btn.style.background = "#173042";
+      btn.style.transform = "translateY(0)";
+      btn.style.boxShadow = "0 5px 13px rgba(23,48,66,.2)";
+    });
+    btn.addEventListener("focus", () => {
+      if (!btn.disabled) btn.style.outline = `3px solid rgba(${COLORS.primaryRgb},.2)`;
+    });
+    btn.addEventListener("blur", () => (btn.style.outline = "none"));
+    btn.addEventListener("click", () => {
+      if (!btn.disabled) onClick();
+    });
+    return btn;
+  }
+
   function createHeader(pageType) {
     const header = document.createElement("div");
     header.className = "bh-panel-header";
@@ -206,13 +289,9 @@
     `;
 
     const btnBox = document.createElement("div");
-    btnBox.style.cssText = "display:flex;gap:8px;";
+    btnBox.style.cssText = "display:flex;align-items:center;gap:8px;flex-shrink:0;";
 
-    elements.activateBtn = createIconButton(
-      KEY_SVG,
-      state.activation.isActivated ? "插件已激活" : "激活插件",
-      () => BH.dialogs.openActivation()
-    );
+    elements.activateBtn = createActivationButton(() => BH.dialogs.openActivation());
 
     const settingsBtn = createIconButton("⚙", "插件设置", () => BH.dialogs.openSettings());
     const closeBtn = createIconButton("✕", "最小化面板", () => BH.ui.minimize());
@@ -409,7 +488,7 @@
       const panel = document.createElement("div");
       panel.id = "bh-panel";
       panel.style.cssText = `
-        position:fixed;top:64px;right:20px;width:clamp(300px,80vw,380px);
+        position:fixed;top:64px;right:20px;width:min(420px,calc(100vw - 40px));
         border-radius:16px;padding:14px;
         font-family:'Segoe UI',system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
         z-index:2147483646;display:flex;flex-direction:column;transition:all .3s ease;
@@ -442,17 +521,7 @@
     refreshActivationUI() {
       const btn = elements.activateBtn;
       if (!btn) return;
-      if (state.activation.isActivated) {
-        btn.disabled = true;
-        btn.title = "插件已激活";
-        btn.style.opacity = "0.5";
-        btn.style.cursor = "not-allowed";
-      } else {
-        btn.disabled = false;
-        btn.title = "激活插件";
-        btn.style.opacity = "1";
-        btn.style.cursor = "pointer";
-      }
+      renderActivationButton(btn);
     },
 
     setRunning(isRunning, runningText, idleText) {
