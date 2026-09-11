@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const { webcrypto } = require("node:crypto");
 
 function loadBackground(fetchImpl) {
   let messageListener;
@@ -29,7 +30,7 @@ function loadBackground(fetchImpl) {
     },
   };
   const source = fs.readFileSync(path.join(__dirname, "../extension/background.js"), "utf8");
-  vm.runInNewContext(source, { chrome, console, fetch: fetchImpl, JSON });
+  vm.runInNewContext(source, { chrome, console, crypto: webcrypto, fetch: fetchImpl, JSON });
   return { messageListener, values };
 }
 
@@ -50,9 +51,12 @@ test("激活请求使用生产 HTTPS 地址和 POST JSON，成功后保存在本
   assert.equal(captured.url, "https://boss-haitou-api.qiujiangtao1990.workers.dev/api/public/card-keys/verify");
   assert.equal(captured.options.method, "POST");
   assert.equal(captured.options.headers["Content-Type"], "application/json");
-  assert.equal(JSON.parse(captured.options.body).key, key);
+  const body = JSON.parse(captured.options.body);
+  assert.equal(body.key, key);
+  assert.match(body.deviceId, /^[0-9a-f-]{36}$/i);
   assert.equal(values.active_status, true);
   assert.equal(values.card_key, key);
+  assert.equal(values.device_id, body.deviceId);
 });
 
 test("错误卡密和网络失败不会写入激活状态", async () => {

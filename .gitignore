@@ -14,3 +14,8 @@ private/
 # Cloudflare / Node 本地状态
 .wrangler/
 node_modules/
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+.tef_dist/*

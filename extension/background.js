@@ -13,11 +13,20 @@ async function saveActivateCredential(activeStatus, cardKey) {
 }
 
 async function getActivateCredential() {
-  const res = await chrome.storage.local.get(["active_status", "card_key"]);
+  const res = await chrome.storage.local.get(["active_status", "card_key", "device_id"]);
   return {
     active_status: res?.active_status ?? null,
     card_key: res?.card_key ?? null,
+    device_id: res?.device_id ?? null,
   };
+}
+
+async function getOrCreateDeviceId() {
+  const { device_id: existingDeviceId } = await getActivateCredential();
+  if (existingDeviceId) return existingDeviceId;
+  const deviceId = crypto.randomUUID();
+  await chrome.storage.local.set({ device_id: deviceId });
+  return deviceId;
 }
 
 async function checkActivateStatus() {
@@ -56,11 +65,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
     }
 
-    fetch(`${API_BASE}/public/card-keys/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: cardKey }),
-    })
+    getOrCreateDeviceId()
+      .then((deviceId) => fetch(`${API_BASE}/public/card-keys/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: cardKey, deviceId }),
+      }))
       .then((response) => response.text().then((text) => ({ status: response.status, text })))
       .then(async ({ status, text }) => {
         let data;
