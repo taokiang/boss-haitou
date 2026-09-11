@@ -734,7 +734,7 @@
       body.appendChild(ok);
     } else {
       // 未激活：弹窗的同时打开购卡链接
-      window.open("https://68n.cn/qDQRi", "_blank");
+      window.open("https://68n.cn/NH67b", "_blank");
 
       const tip = document.createElement("div");
       tip.className = "bh-activation-lead";
