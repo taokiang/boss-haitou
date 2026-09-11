@@ -17,24 +17,22 @@
    * 从 localStorage 重同步去重集合（防多标签页内存不同步导致重复发送）
    */
   function syncDedupSets() {
-    state.hrInteractions.sentGreetingsHRs = new Set(
-      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS, [])
-    );
-    state.hrInteractions.sentResumeHRs = new Set(
-      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_RESUME_HRS, [])
-    );
-    state.hrInteractions.sentImageResumeHRs = new Set(
-      util.getStoredJSON(CONFIG.STORAGE_KEYS.SENT_IMAGE_RESUME_HRS, [])
-    );
+    BH.storage.syncRecordSet(state.hrInteractions.sentGreetingsHRs, CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS);
+    BH.storage.syncRecordSet(state.hrInteractions.sentResumeHRs, CONFIG.STORAGE_KEYS.SENT_RESUME_HRS);
+    BH.storage.syncRecordSet(state.hrInteractions.sentImageResumeHRs, CONFIG.STORAGE_KEYS.SENT_IMAGE_RESUME_HRS);
   }
 
   function markGreetingsSent(hrKey) {
-    BH.storage.addRecordWithLimit(
+    return BH.storage.addRecordWithLimit(
       state.hrInteractions.sentGreetingsHRs,
       CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS,
       CONFIG.STORAGE_LIMITS.SENT_GREETINGS_HRS,
       hrKey
     );
+  }
+
+  function hasSent(set, hrKey, legacyHrKey = null) {
+    return set.has(hrKey) || Boolean(legacyHrKey && set.has(legacyHrKey));
   }
 
   /**
@@ -115,12 +113,37 @@
       BH.log("未配置打招呼语，跳过");
       return false;
     }
+    // 发送前先占位，确保页面刷新/标签页关闭也不会重新发送首条消息。
+    if (!markGreetingsSent(hrKey)) {
+      BH.log("无法保存发送占位，已停止发送以避免重复");
+      return false;
+    }
+    let sentAny = false;
     for (const greeting of greetings) {
-      if (!state.isRunning) return false;
-      await sendCustomReply(greeting.trim());
+      if (!state.isRunning) {
+        if (!sentAny) {
+          BH.storage.removeRecord(
+            state.hrInteractions.sentGreetingsHRs,
+            CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS,
+            hrKey
+          );
+        }
+        return false;
+      }
+      const sent = await sendCustomReply(greeting.trim());
+      if (!sent) {
+        if (!sentAny) {
+          BH.storage.removeRecord(
+            state.hrInteractions.sentGreetingsHRs,
+            CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS,
+            hrKey
+          );
+        }
+        return false;
+      }
+      sentAny = true;
       await util.smartDelay(state.settings.clickDelay, "click");
     }
-    markGreetingsSent(hrKey);
     BH.log("打招呼语已发送");
     return true;
   }
@@ -170,6 +193,18 @@
       // 只有一份附件简历时的确认弹窗
       const singleConfirm = document.querySelector(".panel-resume.sentence-popover .btn-sure-v2");
       if (singleConfirm) {
+        if (
+          hrKey &&
+          !BH.storage.addRecordWithLimit(
+            state.hrInteractions.sentResumeHRs,
+            CONFIG.STORAGE_KEYS.SENT_RESUME_HRS,
+            CONFIG.STORAGE_LIMITS.SENT_RESUME_HRS,
+            hrKey
+          )
+        ) {
+          BH.log("无法保存简历发送占位，已停止发送以避免重复");
+          return false;
+        }
         util.safeClick(singleConfirm);
         await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
       } else {
@@ -196,17 +231,20 @@
           BH.log("简历确认按钮不可用");
           return false;
         }
+        if (
+          hrKey &&
+          !BH.storage.addRecordWithLimit(
+            state.hrInteractions.sentResumeHRs,
+            CONFIG.STORAGE_KEYS.SENT_RESUME_HRS,
+            CONFIG.STORAGE_LIMITS.SENT_RESUME_HRS,
+            hrKey
+          )
+        ) {
+          BH.log("无法保存简历发送占位，已停止发送以避免重复");
+          return false;
+        }
         util.safeClick(confirmBtn);
         await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
-      }
-
-      if (hrKey) {
-        BH.storage.addRecordWithLimit(
-          state.hrInteractions.sentResumeHRs,
-          CONFIG.STORAGE_KEYS.SENT_RESUME_HRS,
-          CONFIG.STORAGE_LIMITS.SENT_RESUME_HRS,
-          hrKey
-        );
       }
       BH.log("附件简历已发送");
       return true;
@@ -268,18 +306,21 @@
       const file = new File([blob], selected.path, { type: "image/jpeg" });
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-      await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
-
-      if (hrKey) {
-        BH.storage.addRecordWithLimit(
+      if (
+        hrKey &&
+        !BH.storage.addRecordWithLimit(
           state.hrInteractions.sentImageResumeHRs,
           CONFIG.STORAGE_KEYS.SENT_IMAGE_RESUME_HRS,
           CONFIG.STORAGE_LIMITS.SENT_IMAGE_RESUME_HRS,
           hrKey
-        );
+        )
+      ) {
+        BH.log("无法保存图片简历发送占位，已停止发送以避免重复");
+        return false;
       }
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
       BH.log(`图片简历已发送: ${selected.path}`);
       return true;
     } catch (e) {
@@ -290,13 +331,16 @@
 
   /* ---------------- 简历发送编排 ---------------- */
 
-  async function handleResumeSending(hrKey) {
-    if (state.settings.useAutoSendResume && !state.hrInteractions.sentResumeHRs.has(hrKey)) {
+  async function handleResumeSending(hrKey, legacyHrKey = null) {
+    if (
+      state.settings.useAutoSendResume &&
+      !hasSent(state.hrInteractions.sentResumeHRs, hrKey, legacyHrKey)
+    ) {
       await sendResume(hrKey);
     }
     if (
       state.settings.useAutoSendImageResume &&
-      !state.hrInteractions.sentImageResumeHRs.has(hrKey)
+      !hasSent(state.hrInteractions.sentImageResumeHRs, hrKey, legacyHrKey)
     ) {
       await sendImageResume(hrKey);
     }
@@ -338,7 +382,7 @@
    * - 最后一条是卡片消息 → 自动点"同意"
    * - 文本含"简历" → 优先图片简历，其次附件简历
    */
-  async function handleFollowUpResponse(hrKey) {
+  async function handleFollowUpResponse(hrKey, legacyHrKey = null) {
     const lastCard = getLastCardMessage();
     if (lastCard && handleCardMessage()) return;
 
@@ -346,14 +390,14 @@
     if (/简历/.test(lastText)) {
       if (
         state.settings.useAutoSendImageResume &&
-        !state.hrInteractions.sentImageResumeHRs.has(hrKey)
+        !hasSent(state.hrInteractions.sentImageResumeHRs, hrKey, legacyHrKey)
       ) {
         await sendImageResume(hrKey);
         return;
       }
       if (
         state.settings.useAutoSendResume &&
-        !state.hrInteractions.sentResumeHRs.has(hrKey)
+        !hasSent(state.hrInteractions.sentResumeHRs, hrKey, legacyHrKey)
       ) {
         await sendResume(hrKey);
       }
@@ -362,13 +406,14 @@
 
   /* ---------------- 状态机入口 ---------------- */
 
-  async function handleHRInteraction(hrKey) {
+  async function handleHRInteraction(hrKey, legacyHrKey = null) {
     try {
       // 每次处理前重同步去重集合（跨标签页安全）
       syncDedupSets();
 
       const responded = hasHRResponded();
-      let greeted = state.hrInteractions.sentGreetingsHRs.has(hrKey);
+      // 兼容旧版“姓名-公司”记录，升级后不会给历史会话重新发送。
+      let greeted = hasSent(state.hrInteractions.sentGreetingsHRs, hrKey, legacyHrKey);
 
       // DOM 真相校验：会话里已存在我们的打招呼语 → 视为已发过，不再重发
       if (!greeted && !responded) {
@@ -390,7 +435,7 @@
         const sent = await sendGreetings(hrKey);
         if (sent) {
           await util.delay(CONFIG.OPERATION_INTERVAL);
-          await handleResumeSending(hrKey);
+          await handleResumeSending(hrKey, legacyHrKey);
         }
         return;
       }
@@ -398,11 +443,11 @@
       // 已回复但简历未发全 → 跟进
       const resumePending =
         (state.settings.useAutoSendResume &&
-          !state.hrInteractions.sentResumeHRs.has(hrKey)) ||
+          !hasSent(state.hrInteractions.sentResumeHRs, hrKey, legacyHrKey)) ||
         (state.settings.useAutoSendImageResume &&
-          !state.hrInteractions.sentImageResumeHRs.has(hrKey));
+          !hasSent(state.hrInteractions.sentImageResumeHRs, hrKey, legacyHrKey));
       if (responded && resumePending) {
-        await handleFollowUpResponse(hrKey);
+        await handleFollowUpResponse(hrKey, legacyHrKey);
       }
     } catch (e) {
       console.error("[BOSS海投] HR 交互处理失败:", e);

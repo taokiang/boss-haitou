@@ -24,15 +24,17 @@
 
     // localStorage key
     STORAGE_KEYS: {
+      PROCESSED_JOBS: "bh_processedJobs",
       SENT_GREETINGS_HRS: "bh_sentGreetingsHRs",
       SENT_RESUME_HRS: "bh_sentResumeHRs",
       SENT_IMAGE_RESUME_HRS: "bh_sentImageResumeHRs",
     },
     // 去重集合容量上限（FIFO）
     STORAGE_LIMITS: {
-      SENT_GREETINGS_HRS: 500,
-      SENT_RESUME_HRS: 300,
-      SENT_IMAGE_RESUME_HRS: 300,
+      PROCESSED_JOBS: 5000,
+      SENT_GREETINGS_HRS: 5000,
+      SENT_RESUME_HRS: 5000,
+      SENT_IMAGE_RESUME_HRS: 5000,
     },
 
     UI: {
@@ -233,11 +235,16 @@
       theme: localStorage.getItem("bh_theme") || "light",
     },
 
-    // HR 交互去重集合（姓名-公司 小写键）
+    // HR 交互去重集合（新版使用会话/岗位键，同时兼容旧版姓名-公司键）
     hrInteractions: {
       sentGreetingsHRs: new Set(util.getStoredJSON(BH.CONFIG.STORAGE_KEYS.SENT_GREETINGS_HRS, [])),
       sentResumeHRs: new Set(util.getStoredJSON(BH.CONFIG.STORAGE_KEYS.SENT_RESUME_HRS, [])),
       sentImageResumeHRs: new Set(util.getStoredJSON(BH.CONFIG.STORAGE_KEYS.SENT_IMAGE_RESUME_HRS, [])),
+    },
+
+    // 已成功发起沟通的岗位（岗位链接/ID），跨启动与跨标签页去重
+    jobInteractions: {
+      processedJobs: new Set(util.getStoredJSON(BH.CONFIG.STORAGE_KEYS.PROCESSED_JOBS, [])),
     },
 
     // 单一数据源的用户设置

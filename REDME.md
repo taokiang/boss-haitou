@@ -7,7 +7,7 @@
 - 按职位关键词、城市、招聘者活跃状态筛选，可排除猎头。
 - 自动遍历职位、发起沟通、滚动加载，并支持投递完成后继续搜索。
 - 配置打招呼语，可选自动发送附件简历和图片简历。
-- 保存用户设置和 HR 交互记录，通过容量受限的记录集合减少重复发送。
+- 保存用户设置、已沟通岗位和 HR 交互记录，并通过跨标签页互斥与持久化记录避免重复发送。
 - 提供卡密激活，以及卡密生成、查询和禁用接口。
 
 ## 项目结构
@@ -83,6 +83,55 @@ PORT=8788 ADMIN_TOKEN='替换为自己的管理令牌' node server/index.js
 - `extension/content/00-config.js`
 
 如果改为远程域名，还需在 `extension/manifest.json` 的 `host_permissions` 中添加对应地址权限。修改扩展后，在扩展管理页重新加载，并刷新 BOSS 直聘页面。
+
+## 生成 test 和生产卡密
+
+当前代码没有独立的 `test` / `production` 卡密类型，也不会根据 `NODE_ENV` 切换数据文件。两类卡密使用相同的生成算法，`test` 或 `production` 只是备注，不改变验证规则、有效期或使用次数。
+
+要隔离测试和生产卡密，应分别部署到不同目录或服务器，各自使用独立的 `server/keys.json`，并让插件连接对应环境的验证服务。仅修改端口或备注不能隔离同一目录中的卡密数据。
+
+### 生成 test 卡密（本地测试）
+
+在本地测试项目根目录执行，生成 5 个卡密：
+
+```bash
+node server/generate-keys.js 5 "test-本地联调"
+```
+
+终端会逐行输出卡密，并将记录追加到本地 `server/keys.json`。启动本地服务：
+
+```bash
+ADMIN_TOKEN='替换为测试管理令牌' node server/index.js
+```
+
+将插件两个 `API_BASE` 均设置为 `http://localhost:8788/api`，重新加载扩展并刷新页面，然后输入刚生成的卡密激活。
+
+### 生成生产卡密
+
+**首次部署、服务尚未启动时**，在生产服务器上的项目根目录执行，生成 100 个正式卡密：
+
+```bash
+node server/generate-keys.js 100 "production-首批发放"
+```
+
+这些卡密会保存到生产目录的 `server/keys.json`。随后在该目录启动服务：
+
+```bash
+ADMIN_TOKEN='替换为生产专用管理令牌' node server/index.js
+```
+
+**生产服务已运行时**，通过管理接口生成，避免命令行工具与服务同时写入数据文件。在生产服务器执行以下命令，将令牌替换为启动服务时配置的实际值；如果服务使用其他端口，同步修改 URL：
+
+```bash
+curl --fail-with-body -X POST 'http://localhost:8788/api/admin/card-keys' \
+  -H 'Authorization: Bearer 替换为生产专用管理令牌' \
+  -H 'Content-Type: application/json' \
+  --data '{"count":100,"note":"production-正式发放"}'
+```
+
+成功响应的 `data` 数组包含本次生成的卡密。命令行单次最多生成 1000 个，管理接口单次最多生成 100 个；数量请使用正整数。
+
+生产插件需要将两个 `API_BASE` 改为生产验证地址（如 `https://你的生产域名/api`），并配置对应的 `host_permissions`，详见上面的「服务配置」。生产服务只识别其自身 `keys.json` 中存在且未禁用的卡密；不要将测试数据文件复制到生产环境。
 
 ## 卡密接口
 

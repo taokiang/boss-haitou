@@ -64,18 +64,37 @@
 
   function getCardKey(card) {
     const link = card.querySelector(".job-name");
-    if (link && link.getAttribute("href")) return link.getAttribute("href");
+    if (link && link.getAttribute("href")) {
+      try {
+        const url = new URL(link.getAttribute("href"), location.origin);
+        if (!/\/job_detail\/[^/]+/.test(url.pathname)) {
+          for (const param of ["jobId", "encryptJobId", "securityId"]) {
+            const value = url.searchParams.get(param);
+            if (value) return `${url.pathname}?${param}=${value}`;
+          }
+        }
+        return url.pathname;
+      } catch (_) {
+        return link.getAttribute("href");
+      }
+    }
     return (card.textContent || "").slice(0, 50);
+  }
+
+  function syncProcessedJobs() {
+    BH.storage.syncRecordSet(state.jobInteractions.processedJobs, CONFIG.STORAGE_KEYS.PROCESSED_JOBS);
   }
 
   /**
    * 取未处理且通过过滤的卡片
    */
   function getFilteredCards() {
+    syncProcessedJobs();
     const cards = Array.from(document.querySelectorAll("li.job-card-box"));
     return cards.filter((card) => {
       const key = getCardKey(card);
       if (processedCards.has(key)) return false;
+      if (state.jobInteractions.processedJobs.has(key)) return false;
 
       const nameEl = card.querySelector(".job-name");
       const jobName = (nameEl ? nameEl.textContent : "").toLowerCase();
@@ -196,32 +215,59 @@
     processedJobNames.push(jobName);
     BH.log(`处理职位: ${jobName}`);
 
-    currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
-    await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
-    currentCard.click();
-    await util.delay(CONFIG.OPERATION_INTERVAL * 2);
+    await BH.storage.withCrossTabLock("job-processing", async () => {
+      syncProcessedJobs();
+      if (state.jobInteractions.processedJobs.has(cardKey)) return;
 
-    // 招聘者活跃度过滤（付费功能，未激活强制"不限"）
-    const activeStatusFilter = state.activation.isActivated
-      ? state.settings.recruiterActivityStatus
-      : ["不限"];
-    if (!activeStatusFilter.includes("不限")) {
-      const status = getRecruiterActiveStatus();
-      if (!activeStatusFilter.some((s) => status.includes(s))) {
-        BH.log(`跳过：招聘者状态「${status}」不在筛选范围`);
+      currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
+      await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
+      currentCard.click();
+      await util.delay(CONFIG.OPERATION_INTERVAL * 2);
+
+      // 招聘者活跃度过滤（付费功能，未激活强制"不限"）
+      const activeStatusFilter = state.activation.isActivated
+        ? state.settings.recruiterActivityStatus
+        : ["不限"];
+      if (!activeStatusFilter.includes("不限")) {
+        const status = getRecruiterActiveStatus();
+        if (!activeStatusFilter.some((s) => status.includes(s))) {
+          BH.log(`跳过：招聘者状态「${status}」不在筛选范围`);
+          return;
+        }
+      }
+
+      const chatBtn = document.querySelector("a.op-btn-chat");
+      if (!chatBtn || chatBtn.textContent.trim() !== "立即沟通") {
+        BH.log("已沟通过，跳过");
+        BH.storage.addRecordWithLimit(
+          state.jobInteractions.processedJobs,
+          CONFIG.STORAGE_KEYS.PROCESSED_JOBS,
+          CONFIG.STORAGE_LIMITS.PROCESSED_JOBS,
+          cardKey
+        );
         return;
       }
-    }
-
-    // 点"立即沟通"（文本不符视为已沟通过）
-    const chatBtn = document.querySelector("a.op-btn-chat");
-    if (!chatBtn || chatBtn.textContent.trim() !== "立即沟通") {
-      BH.log("已沟通过，跳过");
-      return;
-    }
-    util.safeClick(chatBtn);
-    BH.log("已点击立即沟通");
-    await handleGreetingModal();
+      const recorded = BH.storage.addRecordWithLimit(
+        state.jobInteractions.processedJobs,
+        CONFIG.STORAGE_KEYS.PROCESSED_JOBS,
+        CONFIG.STORAGE_LIMITS.PROCESSED_JOBS,
+        cardKey
+      );
+      if (!recorded) {
+        BH.log("无法保存岗位发送占位，已停止沟通以避免重复");
+        return;
+      }
+      if (!util.safeClick(chatBtn)) {
+        BH.storage.removeRecord(
+          state.jobInteractions.processedJobs,
+          CONFIG.STORAGE_KEYS.PROCESSED_JOBS,
+          cardKey
+        );
+        return;
+      }
+      BH.log("已点击立即沟通");
+      await handleGreetingModal();
+    });
   }
 
   /* ================= 聊天页 ================= */
@@ -267,41 +313,43 @@
 
   /* ----- HR 新消息监听 ----- */
 
-  async function handleNewMessage(hrKey) {
+  async function handleNewMessage(hrKey, legacyHrKey = null) {
     if (processingMessage) return;
     processingMessage = true;
     try {
-      // 防抖：200ms 后确认消息稳定
-      await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
-      const currentText = BH.chat.getLastFriendMessageText();
-      if (!currentText || currentText === lastProcessedMessage) return;
-      lastProcessedMessage = currentText;
-
-      if (/简历/.test(currentText)) {
+      await BH.storage.withCrossTabLock("chat-send", async () => {
+        // 防抖：200ms 后确认消息稳定；拿锁后再同步，第二个标签页会看到首个标签页的记录。
+        await util.delay(CONFIG.DELAYS.MEDIUM_SHORT);
         BH.chat.syncDedupSets();
-        if (
-          state.settings.useAutoSendImageResume &&
-          !state.hrInteractions.sentImageResumeHRs.has(hrKey)
-        ) {
-          BH.log("HR 索要简历，发送图片简历");
-          await BH.chat.sendImageResume(hrKey);
-        } else if (
-          state.settings.useAutoSendResume &&
-          !state.hrInteractions.sentResumeHRs.has(hrKey)
-        ) {
-          BH.log("HR 索要简历，发送附件简历");
-          await BH.chat.sendResume(hrKey);
+        const currentText = BH.chat.getLastFriendMessageText();
+        if (!currentText || currentText === lastProcessedMessage) return;
+        lastProcessedMessage = currentText;
+
+        if (/简历/.test(currentText)) {
+          const imageSent =
+            state.hrInteractions.sentImageResumeHRs.has(hrKey) ||
+            (legacyHrKey && state.hrInteractions.sentImageResumeHRs.has(legacyHrKey));
+          const resumeSent =
+            state.hrInteractions.sentResumeHRs.has(hrKey) ||
+            (legacyHrKey && state.hrInteractions.sentResumeHRs.has(legacyHrKey));
+          if (state.settings.useAutoSendImageResume && !imageSent) {
+            BH.log("HR 索要简历，发送图片简历");
+            await BH.chat.sendImageResume(hrKey);
+          } else if (state.settings.useAutoSendResume && !resumeSent) {
+            BH.log("HR 索要简历，发送附件简历");
+            await BH.chat.sendResume(hrKey);
+          }
+        } else {
+          // 卡片消息（交换简历/微信请求）→ 自动同意
+          BH.chat.handleCardMessage();
         }
-      } else {
-        // 卡片消息（交换简历/微信请求）→ 自动同意
-        BH.chat.handleCardMessage();
-      }
+      });
     } finally {
       processingMessage = false;
     }
   }
 
-  function setupMessageObserver(hrKey) {
+  function setupMessageObserver(hrKey, legacyHrKey = null) {
     if (messageObserver) messageObserver.disconnect();
     const messageList = document.querySelector(".chat-message .im-list");
     if (!messageList) return;
@@ -314,13 +362,49 @@
             node.classList &&
             node.classList.contains("item-friend")
           ) {
-            handleNewMessage(hrKey);
+            handleNewMessage(hrKey, legacyHrKey);
             return;
           }
         }
       }
     });
     messageObserver.observe(messageList, { childList: true, subtree: true });
+  }
+
+  function getConversationKey(chatLi, legacyHrKey) {
+    const identityElements = [chatLi, chatLi.querySelector(".figure")].filter(Boolean);
+    const conversationAttributes = [
+      "data-conversation-id",
+      "data-conversationid",
+      "data-chat-id",
+    ];
+    for (const element of identityElements) {
+      for (const attribute of conversationAttributes) {
+        const value = element.getAttribute(attribute);
+        if (value) return `conversation:${attribute}:${value}`.toLowerCase();
+      }
+    }
+
+    const jobAttributes = ["data-job-id"];
+    for (const element of identityElements) {
+      for (const attribute of jobAttributes) {
+        const value = element.getAttribute(attribute);
+        if (value) return `job:${attribute}:${value}|hr:${legacyHrKey}`.toLowerCase();
+      }
+    }
+
+    const jobLink =
+      document.querySelector('.position-name[href*="job_detail"]') ||
+      document.querySelector('a[href*="/job_detail/"]');
+    if (jobLink && jobLink.getAttribute("href")) {
+      try {
+        const url = new URL(jobLink.getAttribute("href"), location.origin);
+        return `job:${url.pathname}|hr:${legacyHrKey}`.toLowerCase();
+      } catch (_) {}
+    }
+
+    const positionName = getPositionName().trim().toLowerCase();
+    return `hr-position:${legacyHrKey}|${positionName || "unknown"}`;
   }
 
   /* ----- 聊天页单轮处理 ----- */
@@ -337,10 +421,8 @@
     if (!name) return;
     const hrKey = `${name}-${company}`.toLowerCase();
 
-    // 正在交互中 / 同一人且监听已在跑 → 跳过
+    // 当前标签页正在交互时跳过
     if (interactingHRKey === hrKey) return;
-    if (hrKey === currentMonitoredHR && messageObserver) return;
-    currentMonitoredHR = hrKey;
 
     // 沟通岗位包含关键词过滤
     if (state.communicationIncludeKeywords.length) {
@@ -369,11 +451,19 @@
       await util.delay(CONFIG.OPERATION_INTERVAL);
     }
 
-    // 先挂消息监听，再交互（交互期间即可响应 HR 消息，且下一节拍守卫生效）
-    setupMessageObserver(hrKey);
-    interactingHRKey = hrKey;
+    const conversationKey = getConversationKey(latestChatLi, hrKey);
+    if (conversationKey === currentMonitoredHR && messageObserver) return;
+    currentMonitoredHR = conversationKey;
+    lastProcessedMessage = "";
+
+    // 监听和主动交互共用岗位/会话键；跨标签页锁覆盖完整的检查、发送、落盘过程。
+    setupMessageObserver(conversationKey, hrKey);
+    interactingHRKey = conversationKey;
     try {
-      await BH.chat.handleHRInteraction(hrKey);
+      await BH.storage.withCrossTabLock("chat-send", async () => {
+        if (!state.isRunning) return;
+        await BH.chat.handleHRInteraction(conversationKey, hrKey);
+      });
     } finally {
       interactingHRKey = null;
     }
