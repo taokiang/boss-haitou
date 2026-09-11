@@ -9,9 +9,6 @@
 
   /* ---------------- 常量配置 ---------------- */
   BH.CONFIG = {
-    // 卡密验证后端地址（部署后改成你的域名）
-    API_BASE: "http://localhost:8788/api",
-
     // 主循环间隔（ms）
     BASIC_INTERVAL: 1000,
     // 各操作间隔基数（ms）
@@ -189,37 +186,6 @@
     `;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), duration);
-  };
-
-  /* ---------------- background 代理请求 ---------------- */
-  /**
-   * 通过 background service worker 发请求（绕开页面 CSP / 跨域）
-   */
-  BH.apiRequest = (options) => {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        {
-          type: "apiRequest",
-          options: {
-            url: options.url,
-            method: options.method || "GET",
-            headers: options.headers || {},
-            body: options.body,
-          },
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            resolve({
-              success: false,
-              message: chrome.runtime.lastError.message,
-              status: 0,
-            });
-            return;
-          }
-          resolve(response || { success: false, message: "未知错误", status: 0 });
-        }
-      );
-    });
   };
 
   /* ---------------- 全局运行时状态 ---------------- */

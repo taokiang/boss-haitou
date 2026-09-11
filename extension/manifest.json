@@ -8,7 +8,7 @@
   "host_permissions": [
     "https://www.zhipin.com/*",
     "https://zhipin.com/*",
-    "http://localhost/*"
+    "https://boss-haitou-api.qiujiangtao1990.workers.dev/*"
   ],
   "background": {
     "service_worker": "background.js"

@@ -1,1 +1,16 @@
 .DS_Store
+
+# Chrome 本地打包产物与私钥
+*.crx
+*.pem
+dist/
+
+# 卡密与本地私密数据
+server/keys*.json
+server/keys*.txt
+private/
+.dev.vars
+
+# Cloudflare / Node 本地状态
+.wrangler/
+node_modules/

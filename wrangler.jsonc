@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "boss-haitou-api",
+  "main": "worker/src/index.mjs",
+  "compatibility_date": "2026-09-11",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "CARD_KEYS",
+      "id": "4acc71c84e10450a83d770b6c7725482"
+    }
+  ]
+}

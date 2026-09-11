@@ -1,10 +1,8 @@
 /**
  * background.js (MV3 service worker)
- * 职责：卡密验证、激活凭证管理、代理 fetch、打开聊天窗口
- *
- * 注意：API_BASE 需与 content/00-config.js 中保持一致
+ * 职责：卡密验证、激活凭证管理、打开聊天窗口
  */
-const API_BASE = "http://localhost:8788/api";
+const API_BASE = "https://boss-haitou-api.qiujiangtao1990.workers.dev/api";
 
 /* ---------- 激活凭证（chrome.storage.local） ---------- */
 async function saveActivateCredential(activeStatus, cardKey) {
@@ -39,27 +37,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 /* ---------- 消息处理 ---------- */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // 代理 fetch（绕开页面 CSP / 跨域）
-  if (request.type === "apiRequest") {
-    const options = request.options;
-    fetch(options.url, {
-      method: options.method || "GET",
-      headers: options.headers || {},
-      body: options.method !== "GET" ? options.body : undefined,
-    })
-      .then((response) =>
-        response.text().then((text) => ({
-          success: true,
-          status: response.status,
-          responseText: text,
-          response: text,
-        }))
-      )
-      .then((data) => sendResponse(data))
-      .catch((error) => sendResponse({ success: false, message: error.message }));
-    return true; // 异步响应
-  }
-
   // 读取激活信息
   if (request.type === "get_activate_info") {
     getActivateCredential()
@@ -79,7 +56,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
     }
 
-    fetch(`${API_BASE}/public/card-keys/verify/${cardKey}`, { method: "GET" })
+    fetch(`${API_BASE}/public/card-keys/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: cardKey }),
+    })
       .then((response) => response.text().then((text) => ({ status: response.status, text })))
       .then(async ({ status, text }) => {
         let data;
