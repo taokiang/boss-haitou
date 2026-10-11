@@ -77,22 +77,11 @@
         font-size: 20px; line-height: 1; cursor: pointer; transition: background .18s ease, color .18s ease, transform .18s ease;
       }
       .bh-dialog-close:hover { color: var(--bh-navy); background: var(--bh-surface); transform: rotate(4deg); }
-      .bh-dialog-close:focus-visible, .bh-btn:focus-visible, .bh-tab:focus-visible,
-      .bh-add-btn:focus-visible, .bh-greeting-del:focus-visible, .bh-img-del:focus-visible,
+      .bh-dialog-close:focus-visible, .bh-btn:focus-visible,
+      .bh-add-btn:focus-visible, .bh-img-del:focus-visible,
       .bh-multi-display:focus-visible, .bh-switch input:focus-visible + .bh-slider {
         outline: 3px solid rgba(0,184,107,.18); outline-offset: 2px;
       }
-      .bh-tabs {
-        display: flex; gap: 4px; padding: 6px; margin: 16px 24px 0;
-        border: 1px solid var(--bh-line); border-radius: 12px; background: var(--bh-surface);
-      }
-      .bh-tab {
-        flex: 1; min-height: 38px; padding: 8px 14px; border: 0; border-radius: 8px;
-        text-align: center; font-size: 13px; color: #687b8d; background: transparent;
-        cursor: pointer; transition: color .18s ease, background .18s ease, box-shadow .18s ease;
-      }
-      .bh-tab:hover { color: var(--bh-navy); }
-      .bh-tab.bh-active { color: var(--bh-green-dark); background: #fff; font-weight: 650; box-shadow: 0 2px 8px rgba(20,48,66,.08); }
       .bh-dialog-body { padding: 18px 24px 22px; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
       .bh-dialog-body::-webkit-scrollbar { width: 6px; }
       .bh-dialog-body::-webkit-scrollbar-thumb { background: #ced9e1; border-radius: 6px; }
@@ -142,28 +131,6 @@
       .bh-switch input:checked + .bh-slider::before { transform: translateX(18px); }
       .bh-switch.bh-locked .bh-slider { opacity: .55; cursor: not-allowed; }
 
-      .bh-greeting-item { display: grid; grid-template-columns: 28px minmax(0,1fr) 32px; gap: 9px; margin-bottom: 10px; align-items: start; }
-      .bh-greeting-index {
-        width: 28px; height: 28px; margin-top: 7px; display: grid; place-items: center;
-        color: var(--bh-green-dark); background: var(--bh-green-soft); border-radius: 9px;
-        font: 700 11px/1 "SFMono-Regular", Consolas, monospace;
-      }
-      .bh-greeting-item textarea {
-        width: 100%; min-height: 68px; padding: 11px 12px; border: 1px solid #dbe5eb;
-        border-radius: 11px; background: #fff; color: var(--bh-text); font-size: 13px; line-height: 1.55;
-        resize: vertical; outline: none; transition: border-color .18s ease, box-shadow .18s ease;
-      }
-      .bh-greeting-item textarea:hover { border-color: #c9d8e0; }
-      .bh-greeting-item textarea:focus { border-color: var(--bh-green); box-shadow: 0 0 0 3px rgba(0,184,107,.1); }
-      .bh-greeting-item textarea.bh-locked {
-        cursor: pointer; color: #7c8c9d; background: #f8fafb;
-      }
-      .bh-greeting-del {
-        border: 0; background: transparent; color: #a0adba; border-radius: 9px;
-        width: 32px; height: 32px; margin-top: 5px; cursor: pointer; flex-shrink: 0; font-size: 18px;
-        transition: color .18s ease, background .18s ease;
-      }
-      .bh-greeting-del:hover { color: #d94e55; background: #fff0f1; }
       .bh-add-btn {
         width: 100%; min-height: 42px; padding: 9px 12px; border: 1px dashed #b9ccd7; border-radius: 11px;
         background: #f8fbfc; color: #607486; font-size: 12px; cursor: pointer;
@@ -233,7 +200,6 @@
         .bh-mask { padding: 12px; align-items: flex-end; }
         .bh-dialog { width: 100%; max-height: 90vh; border-radius: 18px 18px 14px 14px; }
         .bh-dialog-header { padding: 20px 18px 14px; }
-        .bh-tabs { margin: 13px 18px 0; }
         .bh-dialog-body { padding: 16px 18px 18px; }
         .bh-dialog-footer { padding: 12px 18px 16px; }
         .bh-setting-item { align-items: flex-start; }
@@ -361,10 +327,6 @@
 
     // 草稿：编辑期间不污染 state.settings，保存时才写回
     const draft = JSON.parse(JSON.stringify(state.settings));
-    if (!Array.isArray(draft.greetingsList) || !draft.greetingsList.some((text) => text && text.trim())) {
-      draft.greetingsList = [BH.CONFIG.DEFAULT_GREETING];
-    }
-
     const mask = document.createElement("div");
     mask.className = "bh-mask";
 
@@ -382,7 +344,7 @@
         <span class="bh-dialog-heading-icon">${SETTINGS_ICON}</span>
         <div>
           <div class="bh-dialog-title" id="bh-settings-title">投递设置</div>
-          <div class="bh-dialog-subtitle">按你的求职偏好配置自动沟通</div>
+          <div class="bh-dialog-subtitle">按你的求职偏好配置投递</div>
         </div>
       </div>`;
     const closeBtn = document.createElement("button");
@@ -393,40 +355,10 @@
     closeBtn.addEventListener("click", close);
     header.appendChild(closeBtn);
 
-    // tabs
-    const tabs = document.createElement("div");
-    tabs.className = "bh-tabs";
-    const tabChat = document.createElement("button");
-    tabChat.className = "bh-tab bh-active";
-    tabChat.type = "button";
-    tabChat.textContent = "聊天设置";
-    const tabAdvanced = document.createElement("button");
-    tabAdvanced.className = "bh-tab";
-    tabAdvanced.type = "button";
-    tabAdvanced.textContent = "高级设置";
-    tabs.append(tabChat, tabAdvanced);
-
-    // body
+    // 直接展示投递配置，无需切换标签页。
     const body = document.createElement("div");
     body.className = "bh-dialog-body bh-dialog-scroll";
-
-    const chatPanel = buildChatPanel(draft);
-    const advancedPanel = buildAdvancedPanel(draft);
-    advancedPanel.style.display = "none";
-    body.append(chatPanel, advancedPanel);
-
-    tabChat.addEventListener("click", () => {
-      tabChat.classList.add("bh-active");
-      tabAdvanced.classList.remove("bh-active");
-      chatPanel.style.display = "";
-      advancedPanel.style.display = "none";
-    });
-    tabAdvanced.addEventListener("click", () => {
-      tabAdvanced.classList.add("bh-active");
-      tabChat.classList.remove("bh-active");
-      advancedPanel.style.display = "";
-      chatPanel.style.display = "none";
-    });
+    body.appendChild(buildAdvancedPanel(draft));
 
     // footer
     const footer = document.createElement("div");
@@ -441,13 +373,6 @@
     saveBtn.type = "button";
     saveBtn.textContent = "保存设置";
     saveBtn.addEventListener("click", () => {
-      const validGreetings = draft.greetingsList.filter((text) => text && text.trim());
-      if (!validGreetings.length) {
-        BH.notify("至少保留一条聊天文案");
-        tabChat.click();
-        return;
-      }
-      draft.greetingsList = validGreetings;
       Object.assign(state.settings, draft);
       BH.storage.saveSettings();
       BH.notify("设置已保存");
@@ -455,7 +380,7 @@
     });
     footer.append(cancelBtn, saveBtn);
 
-    dialog.append(header, tabs, body, footer);
+    dialog.append(header, body, footer);
     mask.appendChild(dialog);
     mask.addEventListener("click", (e) => {
       if (e.target === mask) close();
@@ -476,106 +401,7 @@
     }
   }
 
-  /* ----- 聊天设置 Tab：打招呼语列表 ----- */
-  function buildChatPanel(draft) {
-    const panel = document.createElement("div");
-    const locked = !state.activation.isActivated;
-
-    const requireActivation = () => {
-      BH.notify("激活插件后可修改聊天文案");
-      BH.dialogs.openActivation();
-    };
-
-    const tip = document.createElement("div");
-    tip.className = "bh-panel-intro";
-    tip.innerHTML = `<span class="bh-panel-intro-mark">i</span><span>把自我介绍拆成简短消息，系统会按下方顺序逐条发送，更方便招聘者阅读。</span>`;
-    panel.appendChild(tip);
-
-    const list = document.createElement("div");
-    panel.appendChild(list);
-
-    const renderList = () => {
-      list.innerHTML = "";
-      draft.greetingsList.forEach((text, idx) => {
-        const row = document.createElement("div");
-        row.className = "bh-greeting-item";
-
-        const index = document.createElement("span");
-        index.className = "bh-greeting-index";
-        index.textContent = String(idx + 1).padStart(2, "0");
-
-        const textarea = document.createElement("textarea");
-        textarea.maxLength = 100;
-        textarea.value = text;
-        if (locked) {
-          textarea.readOnly = true;
-          textarea.classList.add("bh-locked");
-          textarea.title = "激活插件后可修改";
-          textarea.addEventListener("click", requireActivation);
-        }
-        textarea.addEventListener("input", () => {
-          draft.greetingsList[idx] = textarea.value;
-        });
-        textarea.addEventListener("blur", () => {
-          if (!textarea.value.trim()) {
-            if (draft.greetingsList.length === 1) {
-              draft.greetingsList[0] = BH.CONFIG.DEFAULT_GREETING;
-              BH.notify("至少保留一条聊天文案");
-            } else {
-              draft.greetingsList.splice(idx, 1);
-            }
-            renderList();
-          }
-        });
-
-        const del = document.createElement("button");
-        del.className = "bh-greeting-del";
-        del.type = "button";
-        del.textContent = "×";
-        del.title = "删除";
-        del.addEventListener("click", () => {
-          if (locked) {
-            requireActivation();
-            return;
-          }
-          if (draft.greetingsList.length === 1) {
-            BH.notify("至少保留一条聊天文案");
-            return;
-          }
-          draft.greetingsList.splice(idx, 1);
-          renderList();
-        });
-
-        row.append(index, textarea, del);
-        list.appendChild(row);
-      });
-    };
-    renderList();
-
-    const addBtn = document.createElement("button");
-    addBtn.className = "bh-add-btn";
-    addBtn.type = "button";
-    addBtn.textContent = "＋ 添加一条介绍";
-    addBtn.addEventListener("click", () => {
-      if (locked) {
-        requireActivation();
-        return;
-      }
-      if (draft.greetingsList.length >= 10) {
-        BH.notify("最多 10 条打招呼语");
-        return;
-      }
-      draft.greetingsList.push("");
-      renderList();
-      const textareas = list.querySelectorAll("textarea");
-      textareas[textareas.length - 1]?.focus();
-    });
-    panel.appendChild(addBtn);
-
-    return panel;
-  }
-
-  /* ----- 高级设置 Tab ----- */
+  /* ----- 投递配置 ----- */
   function buildAdvancedPanel(draft) {
     const panel = document.createElement("div");
     panel.className = "bh-advanced-panel";
