@@ -2,9 +2,11 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "default_locale": "zh_CN",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://www.zhipin.com/*",
     "https://zhipin.com/*",
@@ -25,7 +27,9 @@
         "content/06-core.js",
         "content/07-main.js"
       ],
-      "matches": ["https://www.zhipin.com/web/*"],
+      "matches": [
+        "https://www.zhipin.com/web/*"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -36,8 +40,12 @@
   },
   "web_accessible_resources": [
     {
-      "matches": ["https://www.zhipin.com/*"],
-      "resources": ["assets/*"]
+      "matches": [
+        "https://www.zhipin.com/*"
+      ],
+      "resources": [
+        "assets/*"
+      ]
     }
   ]
 }
