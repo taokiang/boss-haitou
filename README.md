@@ -8,7 +8,7 @@
 - 自动遍历职位、发起沟通、滚动加载，并支持投递完成后继续搜索。
 - 配置打招呼语，可选自动发送附件简历和图片简历。
 - 保存用户设置、已沟通岗位和 HR 交互记录，避免重复发送。
-- 使用卡密激活；卡密仅以 SHA-256 哈希形式保存在云端。
+- 基础投递无需卡密；高级功能使用卡密激活，卡密仅以 SHA-256 哈希形式保存在云端。
 
 ## 项目结构
 
@@ -31,7 +31,7 @@ PRIVACY.md                 # 隐私政策源文件
 2. 开启“开发者模式”，点击“加载已解压的扩展程序”。
 3. 选择项目中的 `extension` 目录。
 4. 打开并登录 BOSS 直聘网页版，进入职位列表页后刷新。
-5. 在页面右侧面板输入有效卡密完成首次激活。
+5. 设置职位与城市后可使用基础投递；高级筛选、自动附件简历和继续搜索需购卡激活。
 
 ## Cloudflare 部署
 
@@ -195,3 +195,7 @@ node --test tests/*.test.js tests/*.test.mjs
 - 激活失败时检查 Worker 健康接口、扩展网络权限以及卡密是否完整。
 - 修改扩展代码后，需要在扩展管理页重新加载并刷新 BOSS 直聘页面。
 - 页面自动化依赖 BOSS 直聘 DOM，页面结构变化时需要同步维护选择器。
+
+## 自然搜索运营
+
+商店文案见 [STORE_LISTING.md](STORE_LISTING.md)，知乎教程稿见 [marketing/ZHIHU_TUTORIAL.md](marketing/ZHIHU_TUTORIAL.md)，四周安排、截图说明与演示脚本见 [marketing/OPERATIONS.md](marketing/OPERATIONS.md)，每周记录见 [marketing/WEEKLY_METRICS.md](marketing/WEEKLY_METRICS.md)。上线状态见 [marketing/RELEASE_STATUS.md](marketing/RELEASE_STATUS.md)。

@@ -1,10 +1,10 @@
 {
   "extensionName": {
     "description": "扩展名称",
-    "message": "BOSS海投"
+    "message": "BOSS海投 — BOSS直聘批量投递与职位筛选助手"
   },
   "extensionDescription": {
     "description": "扩展描述",
-    "message": "一键批量投递，简历秒回复！让你的BOSS直聘求职效率提升10倍"
+    "message": "适用于 BOSS 直聘网页版，支持职位筛选、批量发起沟通、简历发送和已沟通岗位记录，减少求职中的重复操作。"
   }
 }
